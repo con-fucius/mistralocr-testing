@@ -1,0 +1,668 @@
+{
+  "name": "88 - [Template] - Mistral OCR - AI Invoice Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "",
+          "mode": "url"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [-420, 300],
+      "id": "be564615-d5ff-4fb4-9a6a-2ecacdcc881c",
+      "name": "Trigger File Upload",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [-80, 300],
+      "id": "950f8e86-56a5-48dc-a9eb-f429c333dfdf",
+      "name": "Download File",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mistralCloudApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "purpose",
+              "value": "ocr"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e9a420d3-b96f-4b83-8d2d-feed09d38daf",
+      "name": "Mistral Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [80, 300],
+      "typeVersion": 4.2,
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mistral.ai/v1/files/{{ $json.id }}/url",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mistralCloudApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "expiry",
+              "value": "24"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9cf0c7d5-914e-49ab-a9d3-e7068847f82c",
+      "name": "Mistral Signed URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [240, 300],
+      "typeVersion": 4.2,
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mistralCloudApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"mistral-ocr-latest\",\n  \"document\": {\n    \"type\": \"document_url\",\n    \"document_url\": \"{{ $('Mistral Signed URL').item.json.url }}\"\n  },\n  \"include_image_base64\": true\n}\n",
+        "options": {}
+      },
+      "id": "117bca03-732f-4c71-8c5c-5b17defaa708",
+      "name": "Mistral DOC OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [840, 160],
+      "typeVersion": 4.2,
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "ministral-8b-latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatMistralCloud",
+      "typeVersion": 1,
+      "position": [1280, 480],
+      "id": "0cc9aaba-537f-487c-8eb3-dee450ed62d2",
+      "name": "Mistral Cloud Chat Model",
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"invoice_number\": {\"type\": \"string\"},\n    \"date\": {\n      \"type\": \"string\",\n      \"format\": \"date\",\n      \"description\": \"Date in yyyy-mm-dd format\"\n    },\n    \"total_amount\": {\"type\": \"number\"},\n    \"vendor\": {\"type\": \"string\"},\n    \"customer\": {\"type\": \"string\"},\n    \"items\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"description\": {\"type\": \"string\"},\n          \"amount\": {\"type\": \"number\"}\n        }\n      }\n    }\n  },\n  \"required\": [\"invoice_number\", \"date\", \"total_amount\"]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [1500, 480],
+      "id": "8f930a3c-e018-4e73-806f-6e98cf2fd49e",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=This is invoice OCR in markdown:\n{{ $json.pages[0].markdown }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1300, 300],
+      "id": "5607dc06-d7c3-42fd-a655-317c7143afba",
+      "name": "Document Understanding"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {},
+        "sheetName": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": ["output"],
+          "schema": [
+            {
+              "id": "invoice_number",
+              "displayName": "invoice_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "total_amount",
+              "displayName": "total_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "vendor",
+              "displayName": "vendor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer",
+              "displayName": "customer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1900, 300],
+      "id": "24eb2b21-3a60-492e-a600-08e6769fd518",
+      "name": "Insert row into Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Trigger File Upload').item.json.id }}",
+          "mode": "id"
+        },
+        "newUpdatedFileName": "={{ $('Document Understanding').item.json.output.date }}_{{ $('Document Understanding').item.json.output.vendor }}.{{ $('Trigger File Upload').item.json.fullFileExtension }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2040, 300],
+      "id": "78edbc7a-7691-4ab3-afe9-8d56225e8052",
+      "name": "Rename File",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mistralCloudApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"mistral-ocr-latest\",\n  \"document\": {\n    \"type\": \"image_url\",\n    \"image_url\": \"{{ $('Mistral Signed URL').item.json.url }}\"\n  },\n  \"include_image_base64\": true\n}\n",
+        "options": {}
+      },
+      "id": "2a2b53ba-a99b-4a66-b869-a2de59ad6479",
+      "name": "Mistral Image OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [840, 440],
+      "typeVersion": 4.2,
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# AI Invoice Processing with Mistral OCR",
+        "height": 80,
+        "width": 760,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-540, -140],
+      "typeVersion": 1,
+      "id": "89c7127a-0fee-4c9b-958a-165e25ac329e",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "![](https://svgl.app/library/mistral-ai_logo.svg)\n",
+        "width": 150,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-540, -40],
+      "typeVersion": 1,
+      "id": "ac1aacfe-30d3-4889-b5be-79dbb9341be5",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "![](https://svgl.app/library/drive.svg)\n",
+        "width": 150,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-360, -40],
+      "typeVersion": 1,
+      "id": "ace201a4-ac82-432a-8738-e3765dd025df",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "![](https://cdn.simpleicons.org/n8n)\n",
+        "width": 150,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-180, -40],
+      "typeVersion": 1,
+      "id": "9eb88e6c-af5b-45ef-a8f3-d24cb847ecf6",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "### Trigger workflow on new invoice in Google Drive",
+        "height": 300,
+        "width": 340,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-540, 200],
+      "typeVersion": 1,
+      "id": "a7a58a87-fa71-4888-8701-2471cca12b75",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "76867c05-3a43-406d-afd3-ae8ba5265187",
+              "leftValue": "={{ $('Trigger File Upload').item.json.fileExtension }}",
+              "rightValue": "pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [560, 300],
+      "id": "9ffb999b-ab4e-437e-8721-944f35d3dc66",
+      "name": "If PDF"
+    },
+    {
+      "parameters": {
+        "content": "### Prepare document to upload on Mistral",
+        "height": 300,
+        "width": 500,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-120, 200],
+      "typeVersion": 1,
+      "id": "e8c76446-06b3-4a38-ad6b-cc8ac978d5af",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "### Check if document is PDF or Image and read the document",
+        "height": 580,
+        "width": 580,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [500, 60],
+      "typeVersion": 1,
+      "id": "24fe9854-02ce-4ab4-95fe-7e12e59474d7",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "### Understand and extract data in JSON format",
+        "height": 580,
+        "width": 560,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1200, 60],
+      "typeVersion": 1,
+      "id": "6f43f979-7f06-497e-b40c-2a1b3c658285",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "content": "### Insert data in Google Sheets and rename the file",
+        "height": 300,
+        "width": 460,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1820, 200],
+      "typeVersion": 1,
+      "id": "a1558380-6f68-4a29-8dea-029112f0552b",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "66287a05-7659-482d-8644-98b2cb87165c",
+              "name": "invoice_number",
+              "value": "={{ $json.output.invoice_number }}",
+              "type": "string"
+            },
+            {
+              "id": "2a73b62d-57f7-4e47-ac16-8e392f609056",
+              "name": "date",
+              "value": "={{ $json.output.date }}",
+              "type": "string"
+            },
+            {
+              "id": "63979627-99ca-498a-b9fd-ccf34feb86a1",
+              "name": "total_amount",
+              "value": "={{ $json.output.total_amount }}",
+              "type": "number"
+            },
+            {
+              "id": "b9964f8d-fed1-488b-9fe5-e2ec26665470",
+              "name": "vendor",
+              "value": "={{ $json.output.vendor }}",
+              "type": "string"
+            },
+            {
+              "id": "3252866b-afd5-47c9-b8ea-fabd07c4b199",
+              "name": "customer",
+              "value": "={{ $json.output.customer }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": false
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1600, 300],
+      "id": "3bbce96d-abe1-49a0-8f09-b25e61fa5ced",
+      "name": "Fields to export"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger File Upload": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Upload": {
+      "main": [
+        [
+          {
+            "node": "Mistral Signed URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Signed URL": {
+      "main": [
+        [
+          {
+            "node": "If PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "Mistral Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral DOC OCR": {
+      "main": [
+        [
+          {
+            "node": "Document Understanding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Cloud Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Document Understanding",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Document Understanding",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Understanding": {
+      "main": [
+        [
+          {
+            "node": "Fields to export",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert row into Sheet": {
+      "main": [
+        [
+          {
+            "node": "Rename File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Image OCR": {
+      "main": [
+        [
+          {
+            "node": "Document Understanding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If PDF": {
+      "main": [
+        [
+          {
+            "node": "Mistral DOC OCR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mistral Image OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fields to export": {
+      "main": [
+        [
+          {
+            "node": "Insert row into Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a3dbd033-02db-490a-83ac-21c460b20d56",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7d33f883f947e2bada9970bd0ede0b462e2961441db8de9493fbc5cc97ca54d3"
+  },
+  "id": "muAZdrK6g9ehPiXA",
+  "tags": [
+    {
+      "createdAt": "2025-03-18T14:59:44.017Z",
+      "updatedAt": "2025-03-18T14:59:44.017Z",
+      "id": "2KmT9M7Ce8g4NEK8",
+      "name": "template"
+    }
+  ]
+}
