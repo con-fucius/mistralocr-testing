@@ -94,6 +94,6 @@ n8n’s built-in OCR lacks advanced layout handling; Mistral excels for complex 
 
 ### **Execution**  
 - **n8n**: Deploy workflow → test with form submissions.  
-- **Python**: Run script with `python mistral_ocr_demo.py`.  
+- **Python**: Run script.  
 
 --- 
