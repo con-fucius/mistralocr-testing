@@ -16,11 +16,11 @@ RETRIEVE_ENDPOINT_TEMPLATE = f"{BASE_URL}/retrieve/{{job_id}}"   # Template expe
 if MISTRAL_API_KEY:
     headers = {
         "Authorization": f"Bearer {MISTRAL_API_KEY}",
-        "Accept": "application/json", # Generally good practice
+        "Accept": "application/json",
     }
 else:
     print("Warning: MISTRAL_API_KEY environment variable not set.")
-    headers = {} # Avoid error later, but calls will fail auth
+    headers = {}
 
 # Function definitions
 
